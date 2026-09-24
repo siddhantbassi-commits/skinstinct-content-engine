@@ -1,0 +1,115 @@
+import { GoogleGenerativeAI } from "@google/generative-ai";
+
+function client() {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) throw new Error("GEMINI_API_KEY is not set");
+  return new GoogleGenerativeAI(key);
+}
+
+// Gemini Flash: fast, cheap, no judgment needed — used for triage, not authorship.
+function flash() {
+  return client().getGenerativeModel({ model: "gemini-1.5-flash" });
+}
+
+export interface ScoreResult {
+  score: number;
+  reason: string;
+}
+
+export async function scoreNote(noteText: string): Promise<ScoreResult> {
+  const prompt = `You are triaging raw notes from a skincare founder's personal Telegram
+channel to decide which are worth turning into a LinkedIn post. Score the note below
+from 0 to 10 on whether it has a clear point and enough substance to become a
+publishable, specific post (not a generic observation, not a logistics reminder, not
+an abandoned half-thought).
+
+Score high (7-10): a specific incident, a specific data point, or a specific technical
+explanation with a clear angle.
+Score low (0-5): task reminders, one-line fragments with no developed point, notes that
+just restate something already said elsewhere without a new angle.
+
+Be strict. If everything you score passes, you are being too lenient.
+
+Note:
+"""
+${noteText}
+"""
+
+Respond with ONLY valid JSON, no markdown fences, in this exact shape:
+{"score": <integer 0-10>, "reason": "<one line, under 20 words>"}`;
+
+  const result = await flash().generateContent(prompt);
+  const raw = result.response.text().trim();
+  return parseScoreJson(raw);
+}
+
+function parseScoreJson(raw: string): ScoreResult {
+  const cleaned = raw.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```\s*$/i, "").trim();
+  const parsed = JSON.parse(cleaned);
+  const score = Math.max(0, Math.min(10, Math.round(Number(parsed.score))));
+  const reason = String(parsed.reason ?? "").slice(0, 200);
+  if (Number.isNaN(score)) throw new Error(`Could not parse score from: ${raw}`);
+  return { score, reason };
+}
+
+export async function extractSearchPhrase(noteText: string): Promise<string> {
+  const prompt = `Pull 3-5 search keywords from the note below and return them as a single
+short search phrase suitable for a news search — the kind of phrase you'd type into
+Google News to find a recent, relevant article. Focus on the underlying topic/industry,
+not the founder's specific anecdote.
+
+Note:
+"""
+${noteText}
+"""
+
+Respond with ONLY the search phrase, nothing else. No quotes, no punctuation beyond
+what belongs in the phrase itself.`;
+
+  const result = await flash().generateContent(prompt);
+  return result.response.text().trim();
+}
+
+export async function draftWithGemini(params: {
+  noteText: string;
+  voiceSkill: string;
+  newsItem: { headline: string; summary: string } | null;
+}): Promise<string> {
+  const prompt = buildDraftPrompt(params);
+  const result = await flash().generateContent(prompt);
+  return result.response.text().trim();
+}
+
+export function buildDraftPrompt(params: {
+  noteText: string;
+  voiceSkill: string;
+  newsItem: { headline: string; summary: string } | null;
+}): string {
+  const { noteText, voiceSkill, newsItem } = params;
+  return `You are drafting a LinkedIn post for Meera Pillai, founder of the skincare brand
+Skinstinct. Write ONLY the post text — no preamble, no explanation, no hashtags unless
+her established voice uses them (it doesn't, based on the profile below).
+
+VOICE PROFILE (this is how she writes — match it exactly, don't write generic LinkedIn
+content):
+"""
+${voiceSkill}
+"""
+
+RAW NOTE she captured (this is the seed for the post — develop it, don't just restate
+it):
+"""
+${noteText}
+"""
+${
+  newsItem
+    ? `\nRELEVANT NEWS ITEM (use this to make the post timely ONLY if it is genuinely
+relevant to the note's point; if it doesn't fit naturally, ignore it and don't mention
+it):
+Headline: ${newsItem.headline}
+Summary: ${newsItem.summary}\n`
+    : ""
+}
+Write the post now, in her voice, developing the note into a full, specific, publishable
+LinkedIn post.`;
+}
