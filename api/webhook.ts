@@ -1,7 +1,12 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { TelegramUpdate, sendTelegramMessage } from "../lib/telegram";
-import { scoreNote, extractSearchPhrase, draftWithGemini } from "../lib/gemini";
-import { draftWithClaude } from "../lib/claude";
+import {
+  scoreNote,
+  extractSearchPhrase,
+  draftWithGemini,
+  draftWithGeminiFlash,
+  draftWithGeminiPro,
+} from "../lib/gemini";
 import { fetchTopNews, NewsItem } from "../lib/news";
 import { getVoiceSkill } from "../lib/voiceSkill";
 import { appendVerifyFlag, rejectionMessage, draftDeliveryMessage } from "../lib/format";
@@ -14,7 +19,9 @@ import {
 } from "../lib/db";
 
 const SCORE_THRESHOLD = Number(process.env.SCORE_THRESHOLD ?? 6);
-const DRAFT_MODEL = (process.env.DRAFT_MODEL ?? "claude").toLowerCase();
+// Gemini only, no Anthropic — course constraint. Gemini Pro drafts (holds voice
+// better across a full post), Gemini Flash handles triage/keywords.
+const DRAFT_MODEL = "gemini-pro";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
@@ -87,10 +94,7 @@ async function handleNewNote(chatId: string, telegramMessageId: number, text: st
   const voiceSkill = await getVoiceSkill();
   const draftParams = { noteText: text, voiceSkill, newsItem };
 
-  let draftText =
-    DRAFT_MODEL === "gemini"
-      ? await draftWithGemini(draftParams)
-      : await draftWithClaude(draftParams);
+  let draftText = await draftWithGemini(draftParams);
 
   if (newsItem) {
     draftText = appendVerifyFlag(draftText, newsItem);
@@ -129,15 +133,16 @@ async function handleDecision(chatId: string, text: string) {
 }
 
 // Final 15-min checkpoint: swap the drafting model and compare, without redeploying.
-// Send "/compare <note text>" to run the same note through Gemini and Claude side by
-// side. This does not touch the notes/drafts tables — it's a scratch comparison.
+// This project is Gemini-only (no Anthropic), so the comparison is Gemini Flash vs.
+// Gemini Pro on the same note, in place of the case's Gemini-vs-Claude exercise.
+// Send "/compare <note text>". Does not touch the notes/drafts tables.
 async function handleCompare(chatId: string, noteText: string) {
   const voiceSkill = await getVoiceSkill();
-  const [geminiDraft, claudeDraft] = await Promise.all([
-    draftWithGemini({ noteText, voiceSkill, newsItem: null }),
-    draftWithClaude({ noteText, voiceSkill, newsItem: null }),
+  const [flashDraft, proDraft] = await Promise.all([
+    draftWithGeminiFlash({ noteText, voiceSkill, newsItem: null }),
+    draftWithGeminiPro({ noteText, voiceSkill, newsItem: null }),
   ]);
 
-  await sendTelegramMessage(chatId, `GEMINI:\n\n${geminiDraft}`);
-  await sendTelegramMessage(chatId, `CLAUDE:\n\n${claudeDraft}`);
+  await sendTelegramMessage(chatId, `GEMINI FLASH:\n\n${flashDraft}`);
+  await sendTelegramMessage(chatId, `GEMINI PRO:\n\n${proDraft}`);
 }

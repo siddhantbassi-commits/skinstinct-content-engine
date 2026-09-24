@@ -8,10 +8,9 @@
     "dev": "vercel dev"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.32.1",
     "@google/generative-ai": "^0.21.0",
     "@supabase/supabase-js": "^2.45.4",
-    "fast-xml-parser": "^4.5.0"
+    "fast-xml-parser": "^5.11.1"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",

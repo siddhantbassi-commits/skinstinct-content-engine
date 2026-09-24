@@ -4,6 +4,9 @@ Case 1 / Meera — MESA AI-Native Track. Meera drops a note in Telegram; the pip
 screens it, finds a news angle if one's relevant, drafts a LinkedIn post in her voice,
 and sends it back for her to approve or reject. Nothing publishes without her.
 
+Gemini-only build (no Anthropic/Claude), per course constraint — Gemini Flash handles
+triage and keywords, Gemini Pro handles drafting.
+
 ## How it works
 
 ```
@@ -17,7 +20,7 @@ Meera (Telegram) --note--> webhook --> Gemini Flash: score 0-10
                                           v
                               Google News RSS: top relevant article
                                           v
-                    Claude (or Gemini): draft in Meera's voice + news angle
+                          Gemini Pro: draft in Meera's voice + news angle
                                           v
                     news used? --yes--> append NEWS SOURCE / verify flag
                                           v
@@ -36,8 +39,7 @@ Protected). Publishing is Meera's step, done by hand after she reads the draft.
 ```
 api/webhook.ts       Telegram webhook — the only HTTP entrypoint
 lib/telegram.ts       send/receive helpers
-lib/gemini.ts         scoring, keyword extraction, Gemini drafting, shared prompt builder
-lib/claude.ts          Claude drafting (default drafting model from B1 onward)
+lib/gemini.ts         scoring, keyword extraction, Gemini Flash + Pro drafting, shared prompt builder
 lib/news.ts             Google News RSS fetch, no key needed
 lib/voiceSkill.ts     loads the voice profile from Supabase, seeded from voice-skill.txt
 lib/format.ts           verify-flag / rejection / delivery message formatting
@@ -64,29 +66,24 @@ Everything else (the code) is already done.
 Go to [Google AI Studio](https://aistudio.google.com/apikey), create a key
 (`GEMINI_API_KEY`). Free tier is enough for this.
 
-### 3. Anthropic API key
-
-Go to [console.anthropic.com](https://console.anthropic.com), create a key
-(`ANTHROPIC_API_KEY`).
-
-### 4. Supabase project
+### 3. Supabase project
 
 1. Create a free project at [supabase.com](https://supabase.com).
-2. Project Settings → API → copy the **Project URL** (`SUPABASE_URL`) and the
-   **service_role** key (`SUPABASE_SERVICE_ROLE_KEY` — not the anon key; the webhook
-   writes from a server context, not a browser).
+2. Project Settings → API → copy the **Project URL** (`SUPABASE_URL`) and a
+   **secret** key (`SUPABASE_SERVICE_ROLE_KEY` — the privileged server-side key;
+   on newer projects this is under "Secret keys", not the publishable key).
 3. SQL Editor → New query → paste the contents of `supabase/schema.sql` → Run.
    This creates the three tables: `notes`, `drafts`, `voice_skill`.
 
-### 5. Local env file
+### 4. Local env file
 
 ```bash
 cp .env.example .env
 ```
 
-Fill in the five values above. `.env` is gitignored — never commit it.
+Fill in the four values above. `.env` is gitignored — never commit it.
 
-### 6. Push to GitHub
+### 5. Push to GitHub
 
 ```bash
 git add -A
@@ -98,15 +95,15 @@ git push -u origin main
 (If your default branch is `master`, use `git push -u origin master` or rename it
 first with `git branch -M main`.)
 
-### 7. Deploy on Vercel
+### 6. Deploy on Vercel
 
 1. [vercel.com](https://vercel.com) → New Project → import the GitHub repo.
 2. **Before deploying**, go to the project's Settings → Environment Variables and add
-   all six values from your `.env` (all as "Production" — add "Preview"/"Development"
+   all four values from your `.env` (all as "Production" — add "Preview"/"Development"
    too if you'll test preview deployments).
 3. Deploy. Copy the live URL (`https://your-project.vercel.app`).
 
-### 8. Point Telegram at your deployment
+### 7. Point Telegram at your deployment
 
 In a browser, visit (with your real token and URL substituted):
 
@@ -126,7 +123,8 @@ back. Reply `APPROVE` or `REJECT`.
 Send a thin note (a logistics reminder, a one-line fragment) — you should get a
 rejection message instead, no draft.
 
-To compare Gemini vs. Claude on the same note without changing any env vars, send:
+To compare Gemini Flash vs. Gemini Pro drafting quality on the same note (the case's
+"final 15 min" model-comparison checkpoint, done Gemini-only), send:
 
 ```
 /compare <paste a note here>
@@ -140,8 +138,6 @@ read `approved`.
 
 ## Config knobs (`.env`)
 
-- `DRAFT_MODEL` — `claude` (default, holds voice better across a full post) or
-  `gemini` (faster, used for the original L3 demo).
 - `SCORE_THRESHOLD` — minimum 0–10 score a note needs to pass triage (default `6`,
   per the case's B1.1 checkpoint).
 

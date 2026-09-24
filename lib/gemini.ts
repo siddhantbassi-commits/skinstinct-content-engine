@@ -11,6 +11,13 @@ function flash() {
   return client().getGenerativeModel({ model: "gemini-1.5-flash" });
 }
 
+// Gemini Pro: slower, holds a voice better across a full post — used for drafting.
+// This project uses only Gemini (no Anthropic), so Pro stands in for the "stronger
+// model" role B1 assigns to Claude, including the final Flash-vs-Pro comparison.
+function pro() {
+  return client().getGenerativeModel({ model: "gemini-1.5-pro" });
+}
+
 export interface ScoreResult {
   score: number;
   reason: string;
@@ -70,11 +77,24 @@ what belongs in the phrase itself.`;
   return result.response.text().trim();
 }
 
-export async function draftWithGemini(params: {
+export type DraftParams = {
   noteText: string;
   voiceSkill: string;
   newsItem: { headline: string; summary: string } | null;
-}): Promise<string> {
+};
+
+// Primary drafting path for the pipeline — Gemini Pro.
+export async function draftWithGemini(params: DraftParams): Promise<string> {
+  return draftWithGeminiPro(params);
+}
+
+export async function draftWithGeminiPro(params: DraftParams): Promise<string> {
+  const prompt = buildDraftPrompt(params);
+  const result = await pro().generateContent(prompt);
+  return result.response.text().trim();
+}
+
+export async function draftWithGeminiFlash(params: DraftParams): Promise<string> {
   const prompt = buildDraftPrompt(params);
   const result = await flash().generateContent(prompt);
   return result.response.text().trim();

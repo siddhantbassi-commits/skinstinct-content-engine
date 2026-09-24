@@ -7,7 +7,7 @@
 | **Gemini Flash** | — | — | — | Scores the note 0–10; rejects anything below the threshold | Triage judgment (no authorship) | Score + one-line reason | `lib/gemini.ts` → `scoreNote` |
 | **Gemini Flash** | — | — | — | Pulls 3–5 keywords into a search phrase | Keyword extraction | Search phrase | `lib/gemini.ts` → `extractSearchPhrase` |
 | **Google News (free)** | — | — | Fetches a relevant, recent article for the search phrase | — | — | Headline, source, date, summary, link | `lib/news.ts` |
-| **Claude** (or Gemini via `DRAFT_MODEL`) | — | — | Reads the voice profile (`voice-skill.txt` / `voice_skill` table) and the news item | Writes the post in Meera's voice; uses the news item only if it fits naturally | Drafting — holds voice across a full post | Full LinkedIn post draft | `lib/claude.ts`, `lib/gemini.ts` → `draftWithClaude` / `draftWithGemini` |
+| **Gemini Pro** | — | — | Reads the voice profile (`voice-skill.txt` / `voice_skill` table) and the news item | Writes the post in Meera's voice; uses the news item only if it fits naturally | Drafting — holds voice across a full post | Full LinkedIn post draft | `lib/gemini.ts` → `draftWithGemini` / `draftWithGeminiPro` |
 | **Pipeline** | — | — | — | Appends the verify flag if a news item was used | — | Final draft text | `lib/format.ts` → `appendVerifyFlag` |
 | **Supabase** | — | — | — | Persists note + draft, status `pending` | — | Row in `notes`, row in `drafts` | `lib/db.ts`, `supabase/schema.sql` |
 | **Review Gate — Meera** | Replies APPROVE / REJECT in Telegram | — | — | Updates draft status | — | `approved` / `rejected`, kept either way | `api/webhook.ts` → `handleDecision` |
@@ -21,7 +21,7 @@ Meera --note--> Telegram --webhook--> Gemini Flash (score)
                                     yes -> reject message, stop
                                     no  -> Gemini Flash (keywords)
                                              -> Google News (top article)
-                                             -> Claude/Gemini (draft in voice + news)
+                                             -> Gemini Pro (draft in voice + news)
                                              -> append verify flag if news used
                                              -> Supabase (save note + draft, pending)
                                              -> Telegram (send draft back)

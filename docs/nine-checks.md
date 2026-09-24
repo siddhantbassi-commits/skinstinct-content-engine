@@ -14,7 +14,7 @@
 |---|-------|----------|-----------|
 | 04 | **Output Valuable** — would someone act on it? | 47,000 impressions from 4 posts; one post alone drove 340 profile visits and 3 wholesale enquiries; 6,200 followers waiting. | YES |
 | 05 | **Impact Measurable** — trackable with a number? | Baseline ~0.5 posts/month over 8 months vs. target 3/week; stall time baseline 90–180 min/post vs. target 15 min/week. Both trackable from day one. | YES |
-| 08 | **ROI Worth It** — benefit clearly outweighs cost? | One converted wholesale enquiry likely exceeds the build + running cost (Gemini Flash + Claude + free-tier Supabase/Vercel/Google News). | YES |
+| 08 | **ROI Worth It** — benefit clearly outweighs cost? | One converted wholesale enquiry likely exceeds the build + running cost (Gemini Flash + Pro on the free tier, plus free-tier Supabase/Vercel/Google News). | YES |
 
 ## Boundary — any No = build the tool, human stays here
 
