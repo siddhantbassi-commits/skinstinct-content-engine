@@ -87,21 +87,44 @@ export type DraftParams = {
   newsItem: { headline: string; summary: string } | null;
 };
 
+export interface DraftResult {
+  text: string;
+  // True only when the model actually wove the news item into the post — a fetched
+  // article the draft never mentions must NOT carry the verify flag (see B1.2: the
+  // flag exists so Meera checks claims she's actually making, not to flag noise).
+  usedNews: boolean;
+}
+
 // Primary drafting path for the pipeline — Gemini Pro.
-export async function draftWithGemini(params: DraftParams): Promise<string> {
+export async function draftWithGemini(params: DraftParams): Promise<DraftResult> {
   return draftWithGeminiPro(params);
 }
 
-export async function draftWithGeminiPro(params: DraftParams): Promise<string> {
+export async function draftWithGeminiPro(params: DraftParams): Promise<DraftResult> {
   const prompt = buildDraftPrompt(params);
   const result = await pro().generateContent(prompt);
-  return result.response.text().trim();
+  return parseDraftResponse(result.response.text().trim(), params.newsItem !== null);
 }
 
-export async function draftWithGeminiFlash(params: DraftParams): Promise<string> {
+export async function draftWithGeminiFlash(params: DraftParams): Promise<DraftResult> {
   const prompt = buildDraftPrompt(params);
   const result = await flash().generateContent(prompt);
-  return result.response.text().trim();
+  return parseDraftResponse(result.response.text().trim(), params.newsItem !== null);
+}
+
+function parseDraftResponse(raw: string, expectJson: boolean): DraftResult {
+  if (!expectJson) return { text: raw, usedNews: false };
+
+  const cleaned = raw.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```\s*$/i, "").trim();
+  try {
+    const parsed = JSON.parse(cleaned);
+    return { text: String(parsed.post ?? "").trim(), usedNews: Boolean(parsed.usedNews) };
+  } catch {
+    // Model didn't follow the JSON instruction — fall back to treating the whole
+    // response as the post text and assume the news item wasn't used, since we can't
+    // confirm it was without the flag the model was supposed to set.
+    return { text: raw, usedNews: false };
+  }
 }
 
 export function buildDraftPrompt(params: {
@@ -128,12 +151,15 @@ ${noteText}
 ${
   newsItem
     ? `\nRELEVANT NEWS ITEM (use this to make the post timely ONLY if it is genuinely
-relevant to the note's point; if it doesn't fit naturally, ignore it and don't mention
-it):
+relevant to the note's point; if it doesn't fit naturally, ignore it completely and
+don't mention it):
 Headline: ${newsItem.headline}
-Summary: ${newsItem.summary}\n`
-    : ""
-}
-Write the post now, in her voice, developing the note into a full, specific, publishable
-LinkedIn post.`;
+Summary: ${newsItem.summary}
+
+Respond with ONLY valid JSON, no markdown fences, in this exact shape:
+{"post": "<the full post text>", "usedNews": <true if the post above references or is
+built around the news item, false if you ignored it as not genuinely relevant>}\n`
+    : `\nWrite the post now, in her voice, developing the note into a full, specific,
+publishable LinkedIn post.`
+}`;
 }

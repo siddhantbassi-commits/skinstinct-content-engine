@@ -95,18 +95,19 @@ async function handleNewNote(chatId: string, telegramMessageId: number, text: st
 
   const draftParams = { noteText: text, voiceSkill, newsItem };
 
-  let draftText = await draftWithGemini(draftParams);
-
-  if (newsItem) {
-    draftText = appendVerifyFlag(draftText, newsItem);
-  }
+  const { text: draftBody, usedNews } = await draftWithGemini(draftParams);
+  const draftText =
+    newsItem && usedNews ? appendVerifyFlag(draftBody, newsItem) : draftBody;
 
   const draft = await insertDraft({
     noteId: note.id,
     chatId,
     content: draftText,
     modelUsed: DRAFT_MODEL,
-    news: newsItem,
+    // Only record the news item against the draft if it was actually used —
+    // otherwise this row would misleadingly suggest the post cites a source it
+    // never mentions.
+    news: usedNews ? newsItem : null,
   });
 
   await sendTelegramMessage(chatId, draftDeliveryMessage(draftText, draft.id, DRAFT_MODEL));
@@ -144,6 +145,6 @@ async function handleCompare(chatId: string, noteText: string) {
     draftWithGeminiPro({ noteText, voiceSkill, newsItem: null }),
   ]);
 
-  await sendTelegramMessage(chatId, `GEMINI FLASH:\n\n${flashDraft}`);
-  await sendTelegramMessage(chatId, `GEMINI PRO:\n\n${proDraft}`);
+  await sendTelegramMessage(chatId, `GEMINI FLASH:\n\n${flashDraft.text}`);
+  await sendTelegramMessage(chatId, `GEMINI PRO:\n\n${proDraft.text}`);
 }
