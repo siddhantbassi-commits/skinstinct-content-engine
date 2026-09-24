@@ -10,19 +10,17 @@ triage and keywords, Gemini Pro handles drafting.
 ## How it works
 
 ```
-Meera (Telegram) --note--> webhook --> Gemini Flash: score 0-10
+Meera (Telegram) --note--> webhook --> Gemini Flash: score 0-10 + search phrase
                                           |
                                 score < 6 ?--yes--> rejection message, stop
                                           |
                                          no
                                           v
-                              Gemini Flash: extract search phrase
-                                          v
                               Google News RSS: top relevant article
                                           v
                           Gemini Pro: draft in Meera's voice + news angle
                                           v
-                    news used? --yes--> append NEWS SOURCE / verify flag
+              draft actually cites the news item? --yes--> append verify flag
                                           v
                          save note + draft to Supabase, status "pending"
                                           v
@@ -39,7 +37,7 @@ Protected). Publishing is Meera's step, done by hand after she reads the draft.
 ```
 api/webhook.ts       Telegram webhook — the only HTTP entrypoint
 lib/telegram.ts       send/receive helpers
-lib/gemini.ts         scoring, keyword extraction, Gemini Flash + Pro drafting, shared prompt builder
+lib/gemini.ts         triage (score + keywords in one Flash call), Flash/Pro drafting, shared prompt builder
 lib/news.ts             Google News RSS fetch, no key needed
 lib/voiceSkill.ts     loads the voice profile from Supabase, seeded from voice-skill.txt
 lib/format.ts           verify-flag / rejection / delivery message formatting
@@ -47,6 +45,8 @@ lib/db.ts                 Supabase reads/writes for notes + drafts
 voice-skill.txt        Meera's voice profile, built from the 4 LinkedIn posts + 11
                         newsletters in published/
 supabase/schema.sql   the three tables: notes, drafts, voice_skill
+docs/                    submission write-ups: automation brief, nine checks,
+                        components map, model comparison
 ```
 
 ## Setup — things only you can do
@@ -130,7 +130,8 @@ To compare Gemini Flash vs. Gemini Pro drafting quality on the same note (the ca
 /compare <paste a note here>
 ```
 
-You'll get two replies, one per model, back to back.
+You'll get two replies, one per model, back to back. Write-up of an actual run:
+[docs/model-comparison.md](docs/model-comparison.md).
 
 To check persistence: after any run, open the Supabase Table Editor — the note and
 draft should be there. Reply APPROVE, refresh the `drafts` table — status should now
