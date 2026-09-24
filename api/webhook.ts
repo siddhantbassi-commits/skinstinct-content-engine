@@ -1,8 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { TelegramUpdate, sendTelegramMessage } from "../lib/telegram";
 import {
-  scoreNote,
-  extractSearchPhrase,
+  triageNote,
   draftWithGemini,
   draftWithGeminiFlash,
   draftWithGeminiPro,
@@ -71,9 +70,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 }
 
 async function handleNewNote(chatId: string, telegramMessageId: number, text: string) {
-  const note = await insertNote({ chatId, telegramMessageId, content: text });
-
-  const { score, reason } = await scoreNote(text);
+  // Independent work run concurrently — this pipeline is latency-constrained by
+  // Vercel's function timeout, so every sequential round trip we can avoid matters.
+  // The voice profile doesn't depend on the note at all, so fetch it up front too.
+  const [note, { score, reason, searchPhrase }, voiceSkill] = await Promise.all([
+    insertNote({ chatId, telegramMessageId, content: text }),
+    triageNote(text),
+    getVoiceSkill(),
+  ]);
 
   if (score < SCORE_THRESHOLD) {
     await updateNoteScore(note.id, score, reason, "rejected");
@@ -81,17 +85,14 @@ async function handleNewNote(chatId: string, telegramMessageId: number, text: st
     return;
   }
 
-  await updateNoteScore(note.id, score, reason, "passed");
+  const [, newsItem] = await Promise.all([
+    updateNoteScore(note.id, score, reason, "passed"),
+    fetchTopNews(searchPhrase).catch((err) => {
+      console.error("News fetch failed, continuing without a news angle:", err);
+      return null as NewsItem | null;
+    }),
+  ]);
 
-  const searchPhrase = await extractSearchPhrase(text);
-  let newsItem: NewsItem | null = null;
-  try {
-    newsItem = await fetchTopNews(searchPhrase);
-  } catch (err) {
-    console.error("News fetch failed, continuing without a news angle:", err);
-  }
-
-  const voiceSkill = await getVoiceSkill();
   const draftParams = { noteText: text, voiceSkill, newsItem };
 
   let draftText = await draftWithGemini(draftParams);
