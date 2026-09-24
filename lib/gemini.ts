@@ -6,16 +6,20 @@ function client() {
   return new GoogleGenerativeAI(key);
 }
 
+// Model names use Google's stable aliases (gemini-flash-latest / gemini-pro-latest)
+// rather than a pinned version, so this keeps working as Google revs the underlying
+// model without a code change.
+
 // Gemini Flash: fast, cheap, no judgment needed — used for triage, not authorship.
 function flash() {
-  return client().getGenerativeModel({ model: "gemini-1.5-flash" });
+  return client().getGenerativeModel({ model: "gemini-flash-latest" });
 }
 
 // Gemini Pro: slower, holds a voice better across a full post — used for drafting.
 // This project uses only Gemini (no Anthropic), so Pro stands in for the "stronger
 // model" role B1 assigns to Claude, including the final Flash-vs-Pro comparison.
 function pro() {
-  return client().getGenerativeModel({ model: "gemini-1.5-pro" });
+  return client().getGenerativeModel({ model: "gemini-pro-latest" });
 }
 
 export interface ScoreResult {
