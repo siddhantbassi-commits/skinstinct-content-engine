@@ -38,5 +38,11 @@ create table if not exists drafts (
 create index if not exists idx_drafts_chat_status on drafts (chat_id, status, created_at desc);
 create index if not exists idx_notes_chat on notes (chat_id, created_at desc);
 
+-- RLS on with no policies: the public (anon) API can't touch these tables.
+-- The app only uses the service-role key (server-side), which bypasses RLS.
+alter table voice_skill enable row level security;
+alter table notes enable row level security;
+alter table drafts enable row level security;
+
 -- Rejected notes and rejected drafts are kept, not deleted (see execution plan B1.3) —
 -- there is deliberately no delete path in the application code for either table.
